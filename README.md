@@ -1,6 +1,6 @@
 # azure_agent_simple
 
-Trend-analytics PoC from the `Eda Karatekin.md` spec. Two Azure OpenAI agents
+Trend-analytics PoC of Two Azure OpenAI agents
 over a small public sales dataset:
 
 - **Investigator** — runs a bounded tool loop over a SQLite warehouse,
