@@ -82,6 +82,15 @@ python scripts/ingest.py                # one-off, builds data/warehouse.db
 python scripts/run.py                   # produces data/runs/<ts>/briefing.md
 ```
 
+## Interactive walkthrough — `demo.ipynb`
+
+Open `demo.ipynb` in JupyterLab on your Azure ML compute instance for a
+guided tour: credential check → warehouse build → sample SQL → call each
+tool by hand → run the Investigator with `verbose=True` so you see every
+tool call → run the Writer → audit the briefing for fabricated numbers →
+edit the brief and re-run with your own question. ~30 cells, ~5 minutes
+end-to-end after the warehouse is built.
+
 ## Run artefacts
 
 Each `python scripts/run.py` writes into `data/runs/<timestamp>/`:

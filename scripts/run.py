@@ -49,6 +49,7 @@ def main() -> None:
             warehouse=wh,
             reference_date=ref_date,
             chat_deployment=cfg.chat_deployment,
+            verbose=True,
         )
 
         print(f"[run] reference_date={ref_date}  deployment={cfg.chat_deployment}")

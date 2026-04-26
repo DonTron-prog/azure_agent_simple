@@ -98,6 +98,7 @@ class Investigator:
         warehouse: Warehouse,
         reference_date: str,
         chat_deployment: str = "gpt-4o",
+        verbose: bool = False,
     ) -> None:
         token_provider = get_bearer_token_provider(
             DefaultAzureCredential(), "https://cognitiveservices.azure.com/.default"
@@ -109,6 +110,7 @@ class Investigator:
         )
         self.chat_deployment = chat_deployment
         self.reference_date = reference_date
+        self.verbose = verbose
         self.tools = AnalysisTools(warehouse=warehouse, reference_date=reference_date)
         self.system_prompt = SYSTEM_PROMPT.format(reference_date=reference_date)
 
@@ -158,10 +160,15 @@ class Investigator:
             for call in msg.tool_calls:
                 name = call.function.name
                 args_raw = call.function.arguments
+                if self.verbose:
+                    print(f"  [iter {iteration}] {name}({args_raw})")
                 try:
                     result_json = dispatch(self.tools, name, args_raw)
                 except Exception as exc:
                     result_json = json.dumps({"error": str(exc)})
+                if self.verbose:
+                    preview = result_json if len(result_json) <= 220 else result_json[:217] + "..."
+                    print(f"     → {preview}")
                 tool_calls_log.append(
                     {
                         "tool_call_id": call.id,

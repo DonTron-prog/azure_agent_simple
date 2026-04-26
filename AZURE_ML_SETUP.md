@@ -139,7 +139,19 @@ manually from the UCI page and drop it at
 
 ---
 
-## 9. Run a briefing
+## 9. Run a briefing — two ways
+
+### Option A: the `demo.ipynb` notebook (recommended for first run)
+
+ML Studio → **Notebooks** tab → open `demo.ipynb` from the project folder.
+The notebook walks through credential check, warehouse build, sample SQL,
+each tool, the Investigator (verbose), the Writer, and an audit of the
+briefing. Run cells top-to-bottom. Read the markdown between them.
+
+Pick the kernel you created (e.g. `Python 3.11 - agentsimple`) from the top
+right if it isn't already selected.
+
+### Option B: the CLI
 
 ```bash
 python scripts/run.py
