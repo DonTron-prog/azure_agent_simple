@@ -114,15 +114,13 @@ def _write_sqlite(df: pd.DataFrame, db_path: Path) -> None:
         if p.exists():
             p.unlink()
 
-    conn = sqlite3.connect(str(db_path), isolation_level=None)  # autocommit; we manage txns
+    # isolation_level=None puts the connection in autocommit mode, which lets
+    # pandas' to_sql manage its own transactions internally without conflicting
+    # with an outer BEGIN/COMMIT here. Pragmas reduce journal/WAL contention.
+    conn = sqlite3.connect(str(db_path), isolation_level=None)
     try:
-        # journal_mode=OFF + synchronous=OFF is safe here because we're rebuilding
-        # from scratch — if ingest fails, just re-run it. These pragmas avoid the
-        # journal/WAL files that are the main source of lock contention on network FS.
         conn.execute("PRAGMA journal_mode = OFF")
         conn.execute("PRAGMA synchronous = OFF")
-        conn.execute("PRAGMA locking_mode = EXCLUSIVE")
-        conn.execute("BEGIN")
         df.to_sql("sales", conn, index=False, if_exists="replace")
         conn.executescript(
             """
@@ -145,7 +143,6 @@ def _write_sqlite(df: pd.DataFrame, db_path: Path) -> None:
             FROM sales;
             """
         )
-        conn.execute("COMMIT")
     finally:
         conn.close()
 
