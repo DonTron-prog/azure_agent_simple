@@ -137,6 +137,14 @@ If the UCI URL is unreachable from your compute instance, download the file
 manually from the UCI page and drop it at
 `data/raw/online_retail_II.xlsx`, then re-run ingest.
 
+> **`database is locked` during ingest?** `~/cloudfiles/` is an Azure Files
+> mount and SQLite's file locking is unreliable over network filesystems. Set
+> `WAREHOUSE_DB=/tmp/azure_agent_simple/warehouse.db` in `.env` (local
+> instance disk — locks work correctly there) and re-run. The `/tmp` path is
+> wiped on instance stop/start, so you'll re-run ingest at the start of each
+> session; the cached `.xlsx` is still on cloudfiles so the download doesn't
+> repeat.
+
 ---
 
 ## 9. Run a briefing — two ways

@@ -105,11 +105,25 @@ def _load_and_clean(xlsx_path: Path) -> pd.DataFrame:
 
 
 def _write_sqlite(df: pd.DataFrame, db_path: Path) -> None:
-    if db_path.exists():
-        db_path.unlink()
-    conn = sqlite3.connect(str(db_path))
+    # Clear any leftover db + lock files from a previous failed run.
+    # SQLite over network filesystems (Azure Files / NFS / CIFS) sometimes
+    # leaves stale -journal / -wal / -shm files that cause "database is locked"
+    # on the next write attempt.
+    for suffix in ("", "-journal", "-wal", "-shm"):
+        p = db_path.with_name(db_path.name + suffix)
+        if p.exists():
+            p.unlink()
+
+    conn = sqlite3.connect(str(db_path), isolation_level=None)  # autocommit; we manage txns
     try:
-        df.to_sql("sales", conn, index=False, chunksize=50_000)
+        # journal_mode=OFF + synchronous=OFF is safe here because we're rebuilding
+        # from scratch — if ingest fails, just re-run it. These pragmas avoid the
+        # journal/WAL files that are the main source of lock contention on network FS.
+        conn.execute("PRAGMA journal_mode = OFF")
+        conn.execute("PRAGMA synchronous = OFF")
+        conn.execute("PRAGMA locking_mode = EXCLUSIVE")
+        conn.execute("BEGIN")
+        df.to_sql("sales", conn, index=False, if_exists="replace")
         conn.executescript(
             """
             CREATE INDEX idx_sales_date ON sales(invoice_date);
@@ -131,7 +145,7 @@ def _write_sqlite(df: pd.DataFrame, db_path: Path) -> None:
             FROM sales;
             """
         )
-        conn.commit()
+        conn.execute("COMMIT")
     finally:
         conn.close()
 
