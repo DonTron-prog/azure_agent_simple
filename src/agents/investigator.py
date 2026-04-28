@@ -114,10 +114,33 @@ class Investigator:
         self.tools = AnalysisTools(warehouse=warehouse, reference_date=reference_date)
         self.system_prompt = SYSTEM_PROMPT.format(reference_date=reference_date)
 
-    def investigate(self, brief: str = USER_BRIEF) -> InvestigationResult:
+    def investigate(
+        self,
+        brief: str = USER_BRIEF,
+        critic_feedback: str | None = None,
+        prior_findings: list[dict[str, Any]] | None = None,
+    ) -> InvestigationResult:
+        user_content = brief
+        if critic_feedback:
+            prior_block = ""
+            if prior_findings is not None:
+                prior_block = (
+                    "\n\nFindings from the previous pass (which the critic flagged):\n"
+                    + json.dumps(prior_findings, default=str)
+                )
+            user_content = (
+                f"{brief}\n\n"
+                "An earlier investigation pass produced findings that the critic judged insufficient. "
+                "You are running a revision pass. Critic feedback to address:\n"
+                f"{critic_feedback}"
+                f"{prior_block}\n\n"
+                "Use the tools to gather the missing evidence, then return the full updated findings JSON "
+                "(not a delta). You may keep any findings from the previous pass that were not flagged."
+            )
+
         messages: list[dict[str, Any]] = [
             {"role": "system", "content": self.system_prompt},
-            {"role": "user", "content": brief},
+            {"role": "user", "content": user_content},
         ]
         tool_calls_log: list[dict[str, Any]] = []
 

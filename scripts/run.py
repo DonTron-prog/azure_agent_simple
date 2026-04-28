@@ -1,14 +1,16 @@
-"""Run one briefing: Investigator → Writer → briefing.md + run log.
+"""Run one briefing through the agent team: Investigator → Writer → Critic, looped.
 
 Manual trigger: `python scripts/run.py`. Each run writes a timestamped folder
 under `data/runs/<run_id>/` with:
-  - briefing.md   the analyst-facing output
-  - findings.json the structured findings from the Investigator
-  - tool_calls.jsonl every tool call + result, one per line
-  - run.json      metadata (reference date, deployment, iterations, timing)
+  - briefing.md   the analyst-facing output (last approved/produced draft)
+  - findings.json the structured findings the briefing was written from
+  - tool_calls.jsonl every tool call + result (across all rounds), one per line
+  - critic.json   per-round verdicts, feedback, and issues
+  - run.json      metadata (reference date, deployment, rounds, timing, approved)
 """
 from __future__ import annotations
 
+import dataclasses
 import json
 import sys
 import time
@@ -23,7 +25,7 @@ from dotenv import load_dotenv  # noqa: E402
 load_dotenv(ROOT / ".env")
 
 from agents.investigator import Investigator  # noqa: E402
-from agents.writer import write_briefing  # noqa: E402
+from agents.team import DEFAULT_MAX_ROUNDS, run_team  # noqa: E402
 from config import get_config  # noqa: E402
 from db import warehouse  # noqa: E402
 
@@ -53,30 +55,26 @@ def main() -> None:
         )
 
         print(f"[run] reference_date={ref_date}  deployment={cfg.chat_deployment}")
+        print(f"[run] team max_rounds={DEFAULT_MAX_ROUNDS}")
 
         t0 = time.time()
-        print("[run] investigator starting tool loop…")
-        result = investigator.investigate()
-        inv_elapsed = time.time() - t0
-        print(
-            f"[run] investigator done in {inv_elapsed:.1f}s  "
-            f"iterations={result.iterations}  tool_calls={len(result.tool_calls)}  "
-            f"findings={len(result.findings)}"
-        )
-
-        t1 = time.time()
-        print("[run] writer composing briefing…")
-        briefing = write_briefing(
+        result = run_team(
+            investigator=investigator,
             openai_endpoint=cfg.openai_endpoint,
             chat_deployment=cfg.chat_deployment,
             reference_date=ref_date,
-            findings=result.findings,
-            summary=result.summary,
-            tool_calls=result.tool_calls,
+            max_rounds=DEFAULT_MAX_ROUNDS,
+            verbose=True,
         )
-        wr_elapsed = time.time() - t1
+        elapsed = time.time() - t0
 
-    (run_dir / "briefing.md").write_text(briefing, encoding="utf-8")
+    print(
+        f"\n[run] team done in {elapsed:.1f}s  "
+        f"rounds={len(result.rounds)}  approved={result.approved}  "
+        f"tool_calls={len(result.tool_calls)}  findings={len(result.findings)}"
+    )
+
+    (run_dir / "briefing.md").write_text(result.briefing, encoding="utf-8")
     (run_dir / "findings.json").write_text(
         json.dumps({"summary": result.summary, "findings": result.findings}, indent=2),
         encoding="utf-8",
@@ -84,18 +82,28 @@ def main() -> None:
     with (run_dir / "tool_calls.jsonl").open("w", encoding="utf-8") as f:
         for c in result.tool_calls:
             f.write(json.dumps(c, default=str) + "\n")
+    (run_dir / "critic.json").write_text(
+        json.dumps(
+            {
+                "approved": result.approved,
+                "rounds": [dataclasses.asdict(r) for r in result.rounds],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
     (run_dir / "run.json").write_text(
         json.dumps(
             {
                 "run_id": run_id,
                 "reference_date": ref_date,
                 "chat_deployment": cfg.chat_deployment,
-                "iterations": result.iterations,
+                "max_rounds": DEFAULT_MAX_ROUNDS,
+                "rounds_used": len(result.rounds),
+                "approved": result.approved,
                 "tool_calls": len(result.tool_calls),
                 "findings": len(result.findings),
-                "investigator_seconds": round(inv_elapsed, 2),
-                "writer_seconds": round(wr_elapsed, 2),
-                "raw_final_message": result.raw_final_message,
+                "elapsed_seconds": round(elapsed, 2),
             },
             indent=2,
         ),
@@ -104,7 +112,7 @@ def main() -> None:
 
     print(f"[run] wrote {run_dir}/briefing.md")
     print("--- briefing preview ---")
-    print(briefing)
+    print(result.briefing)
 
 
 if __name__ == "__main__":

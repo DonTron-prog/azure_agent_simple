@@ -38,6 +38,8 @@ def write_briefing(
     findings: list[dict[str, Any]],
     summary: str,
     tool_calls: list[dict[str, Any]],
+    critic_feedback: str | None = None,
+    previous_draft: str | None = None,
 ) -> str:
     token_provider = get_bearer_token_provider(
         DefaultAzureCredential(), "https://cognitiveservices.azure.com/.default"
@@ -59,12 +61,21 @@ def write_briefing(
         for c in tool_calls
     ]
 
-    user_payload = {
+    user_payload: dict[str, Any] = {
         "reference_date": reference_date,
         "investigator_summary": summary,
         "findings": findings,
         "tool_calls": tool_call_digest,
     }
+    if critic_feedback:
+        user_payload["critic_feedback"] = critic_feedback
+        user_payload["instructions"] = (
+            "This is a revision pass. The previous draft is included for reference. "
+            "Address the critic feedback. Do not invent new numbers; revise wording, citations, "
+            "and emphasis only."
+        )
+    if previous_draft:
+        user_payload["previous_draft"] = previous_draft
 
     resp = client.chat.completions.create(
         model=chat_deployment,
